@@ -1,0 +1,52 @@
+#!/bin/bash
+# Runs as root after the package copied its files to /Library/AlldebridStreaming.
+# Registers the native host system-wide (in /Library, not in the user's home folder),
+# so macOS app-data protection on ~/Library/Application Support/<browser> doesn't apply.
+
+APP_DIR="/Library/AlldebridStreaming"
+HOST="com.alld.node"
+# Record of what this installer created, used by uninstall.sh
+MANIFESTS_LOG="$APP_DIR/.installed-manifests"
+DIRS_LOG="$APP_DIR/.created-dirs"
+touch "$MANIFESTS_LOG" "$DIRS_LOG"
+
+log() { echo "AlldebridStreaming postinstall: $*"; }
+
+add_line() { # add_line <file> <line>, without duplicates
+  grep -qxF "$2" "$1" 2>/dev/null || echo "$2" >> "$1"
+}
+
+# make_dir <dir>: create the dir and each missing parent, remembering the ones we created
+make_dir() {
+  local d="$1" missing=()
+  while [ ! -d "$d" ]; do
+    missing=("$d" "${missing[@]}")
+    d=$(dirname "$d")
+  done
+  for d in "${missing[@]}"; do
+    mkdir "$d" && chmod 755 "$d" && add_line "$DIRS_LOG" "$d"
+  done
+}
+
+# install_manifest <target dir> <source manifest>
+install_manifest() {
+  make_dir "$1" || { log "could not create $1"; return; }
+  install -m 644 -o root -g wheel "$2" "$1/$HOST.json" || { log "could not write $1/$HOST.json"; return; }
+  add_line "$MANIFESTS_LOG" "$1/$HOST.json"
+  log "registered $1/$HOST.json"
+}
+
+chmod 755 "$APP_DIR/run.sh" "$APP_DIR/uninstall.sh"
+
+# Google Chrome (always)
+install_manifest "/Library/Google/Chrome/NativeMessagingHosts" "$APP_DIR/$HOST.chrome.json"
+
+# Other browsers, only if they are installed
+if [ -d "/Applications/Microsoft Edge.app" ]; then
+  install_manifest "/Library/Microsoft/Edge/NativeMessagingHosts" "$APP_DIR/$HOST.chrome.json"
+fi
+if [ -d "/Applications/Firefox.app" ]; then
+  install_manifest "/Library/Application Support/Mozilla/NativeMessagingHosts" "$APP_DIR/$HOST.firefox.json"
+fi
+
+exit 0

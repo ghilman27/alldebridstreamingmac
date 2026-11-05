@@ -1,0 +1,9 @@
+{
+  "name": "com.alld.node",
+  "description": "Node Host for Native Messaging",
+  "path": "/Library/AlldebridStreaming/run.sh",
+  "type": "stdio",
+  "allowed_extensions": [
+    "alldebrid@alldebrid.com"
+  ]
+}
